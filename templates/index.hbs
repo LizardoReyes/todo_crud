@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToDo List</title>
+</head>
+<body>
+<h1>ToDo List</h1>
+
+<form action="/add" method="post">
+    <input type="text" name="description" placeholder="New Task" required>
+    <button type="submit">Add</button>
+</form>
+
+<ul>
+    {{#each tasks}}
+        <li>
+            {{description}}
+            <form action="/delete/{{id}}" method="post" style="display:inline;">
+                <button type="submit">Delete</button>
+            </form>
+        </li>
+    {{/each}}
+</ul>
+</body>
+</html>
