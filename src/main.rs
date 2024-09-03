@@ -1,19 +1,20 @@
 #[macro_use] extern crate rocket;
 
-use rocket::form::Form;
-use rocket::response::Redirect;
-use rocket_dyn_templates::Template;
+use rocket::serde::json::Json;
+use rocket::serde::Deserialize;
+use rocket::response::status;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 
-#[derive(FromForm, Serialize)]
+#[derive(Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
 struct Task {
     id: Option<i32>,
     description: String,
 }
 
-#[get("/")]
-fn index() -> Template {
+#[get("/tasks")]
+async fn get_tasks() -> Json<Vec<Task>> {
     let conn = Connection::open("tasks.db").unwrap();
     let mut stmt = conn.prepare("SELECT id, description FROM tasks").unwrap();
     let task_iter = stmt.query_map([], |row| {
@@ -28,27 +29,33 @@ fn index() -> Template {
         tasks.push(task.unwrap());
     }
 
-    let context = serde_json::json!({ "tasks": tasks });
-    Template::render("index", &context)
+    Json(tasks)
 }
 
-#[post("/add", data = "<task_form>")]
-fn add(task_form: Form<Task>) -> Redirect {
+#[post("/tasks", format = "json", data = "<task>")]
+async fn add_task(task: Json<Task>) -> status::Created<Json<Task>> {
     let conn = Connection::open("tasks.db").unwrap();
     conn.execute("INSERT INTO tasks (description) VALUES (?1)",
-                 params![task_form.description]).unwrap();
-    Redirect::to(uri!(index))
+                 params![task.description]).unwrap();
+
+    let last_id = conn.last_insert_rowid();
+    let new_task = Task {
+        id: Some(last_id as i32),
+        description: task.description.clone(),
+    };
+
+    status::Created::new("/tasks").body(Json(new_task))
 }
 
-#[post("/delete/<id>")]
-fn delete(id: i32) -> Redirect {
+#[delete("/tasks/<id>")]
+async fn delete_task(id: i32) -> status::NoContent {
     let conn = Connection::open("tasks.db").unwrap();
     conn.execute("DELETE FROM tasks WHERE id = ?1", params![id]).unwrap();
-    Redirect::to(uri!(index))
+    status::NoContent
 }
 
 #[launch]
-fn rocket() ->  _ {
+fn rocket() -> _ {
     // Initialize the database
     let conn = Connection::open("tasks.db").unwrap();
     conn.execute(
@@ -60,6 +67,5 @@ fn rocket() ->  _ {
     ).unwrap();
 
     rocket::build()
-        .mount("/", routes![index, add, delete])
-        .attach(Template::fairing())
+        .mount("/", routes![get_tasks, add_task, delete_task])
 }
