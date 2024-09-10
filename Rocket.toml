@@ -1,3 +1,4 @@
 [default]
 enviroment = "development"
+address = "0.0.0.0"  # Esto enlaza la aplicación a todas las interfaces de red
 port = 8001
